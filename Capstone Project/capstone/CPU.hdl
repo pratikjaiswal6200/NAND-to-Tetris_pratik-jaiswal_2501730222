@@ -1,0 +1,31 @@
+CHIP CPU {
+    IN inM[16], instruction[16], reset;
+    OUT outM[16], writeM, addressM[15], pc[15];
+
+    PARTS:
+    // A-instructions load A. C-instructions load selected destinations.
+    Not(in=instruction[15], out=isA);
+    And(a=instruction[15], b=instruction[5], out=destA);
+    Or(a=isA, b=destA, out=loadA);
+    Mux16(a=instruction, b=result, sel=instruction[15], out=nextA);
+    ARegister(in=nextA, load=loadA, out=a, out[0..14]=addressM);
+    And(a=instruction[15], b=instruction[4], out=loadD);
+    DRegister(in=result, load=loadD, out=d);
+    And(a=instruction[15], b=instruction[3], out=writeM);
+
+    Mux16(a=a, b=inM, sel=instruction[12], out=y);
+    ALU(x=d, y=y, zx=instruction[11], nx=instruction[10],
+        zy=instruction[9], ny=instruction[8], f=instruction[7],
+        no=instruction[6], out=result, out=outM, zr=zero, ng=neg);
+
+    // The jump bits select a negative, zero, or positive ALU result.
+    Or(a=zero, b=neg, out=nonPositive);
+    Not(in=nonPositive, out=pos);
+    And(a=instruction[2], b=neg, out=jumpNeg);
+    And(a=instruction[1], b=zero, out=jumpZero);
+    And(a=instruction[0], b=pos, out=jumpPos);
+    Or(a=jumpNeg, b=jumpZero, out=jumpNegOrZero);
+    Or(a=jumpNegOrZero, b=jumpPos, out=jumpCondition);
+    And(a=instruction[15], b=jumpCondition, out=loadPC);
+    PC(in=a, load=loadPC, inc=true, reset=reset, out[0..14]=pc);
+}
